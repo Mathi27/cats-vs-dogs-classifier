@@ -46,7 +46,7 @@ jobs:
         run: |
           docker build -t mathi27/cat-vs-dog-classifier:latest .
 
-      # 7️⃣ Push Docker image
+      # Push Docker image
       - name: Push Docker image
         run: |
           docker push mathi27/cat-vs-dog-classifier:latest

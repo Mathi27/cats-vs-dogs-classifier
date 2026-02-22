@@ -47,7 +47,7 @@ def predict():
     
     """Prediction endpoint accepting an image and returning probabilities."""
     if model is None:
-         return jsonify({"error": "Model not available"}), 503
+         return jsonify({"error": "Model not available"}), 400
          
     
         

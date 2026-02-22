@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: "flask-app"
+    static_configs:
+      - targets: ["flask-app:8000"]
+    # Model performance metrics at /metrics:
+    # - app_requests_total, app_request_latency_seconds (request metrics)
+    # - model_predictions_total{predicted_label} (prediction counts)
+    # - model_feedback_total, model_feedback_correct_total, model_feedback_incorrect_total
+    # - model_accuracy, model_precision_cat, model_precision_dog, model_recall_cat, model_recall_dog
+    # - feedback_crud_operations_total{operation,status} (feedback CRUD: create|read|update|delete, success|error)

@@ -121,6 +121,32 @@
             margin-bottom: 15px;
             min-height: 20px;
         }
+        .feedback-section {
+            margin-top: 15px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+        .feedback-section.visible { display: block; }
+        .feedback-section p { margin: 0 0 10px 0; font-size: 0.9em; color: #555; }
+        .feedback-btns {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .feedback-btns button {
+            flex: 0 1 auto;
+            padding: 8px 14px;
+            font-size: 0.9em;
+        }
+        .btn-correct { background: #28a745; color: white; }
+        .btn-correct:hover { background: #218838; }
+        .btn-wrong-cat { background: #ff8c00; color: white; }
+        .btn-wrong-cat:hover { background: #e67e00; }
+        .btn-wrong-dog { background: #20b2aa; color: white; }
+        .btn-wrong-dog:hover { background: #1a9b94; }
+        .feedback-sent { color: #28a745; font-size: 0.85em; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -158,6 +184,16 @@
             <span class="bar-label">Dog</span>
             <span class="bar-percent" id="dog-percent">0%</span>
         </div>
+
+        <div class="feedback-section" id="feedback-section">
+            <p>Was this prediction correct?</p>
+            <div class="feedback-btns">
+                <button class="btn-correct" id="btn-correct">✓ Correct</button>
+                <button class="btn-wrong-cat" id="btn-wrong-cat">✗ Wrong, it was Cat</button>
+                <button class="btn-wrong-dog" id="btn-wrong-dog">✗ Wrong, it was Dog</button>
+            </div>
+            <div class="feedback-sent" id="feedback-sent" style="display: none;">Thanks! Feedback recorded for model evaluation.</div>
+        </div>
     </div>
 
     <script>
@@ -175,8 +211,15 @@
         const catPercent = document.getElementById('cat-percent');
         const dogFill = document.getElementById('dog-fill');
         const dogPercent = document.getElementById('dog-percent');
+        const feedbackSection = document.getElementById('feedback-section');
+        const btnCorrect = document.getElementById('btn-correct');
+        const btnWrongCat = document.getElementById('btn-wrong-cat');
+        const btnWrongDog = document.getElementById('btn-wrong-dog');
+        const feedbackSent = document.getElementById('feedback-sent');
 
         let selectedFile = null;
+        let lastPredictionId = null;
+        let lastPredictionLabel = null;
 
         // --- API Health Check Logic ---
         btnHealth.addEventListener('click', async () => {
@@ -245,6 +288,9 @@
             statusText.innerText = "Image ready. Click 'Run Prediction'.";
             statusText.style.color = "#333";
             resetBars();
+            feedbackSection.classList.remove('visible');
+            feedbackSent.style.display = 'none';
+            lastPredictionId = null;
         }
 
         // --- Prediction Logic ---
@@ -277,6 +323,17 @@
                     
                     dogFill.style.width = `${data.confidence.Dog}%`;
                     dogPercent.innerText = `${data.confidence.Dog}%`;
+
+                    // Show feedback section for model performance tracking
+                    lastPredictionId = data.prediction_id || null;
+                    lastPredictionLabel = data.prediction || null;
+                    if (lastPredictionId) {
+                        feedbackSection.classList.add('visible');
+                        feedbackSent.style.display = 'none';
+                        btnCorrect.disabled = false;
+                        btnWrongCat.disabled = false;
+                        btnWrongDog.disabled = false;
+                    }
                 } else {
                     statusText.innerText = `Error: ${data.error}`;
                     statusText.style.color = "#dc3545";
@@ -293,6 +350,33 @@
             catFill.style.width = '0%'; catPercent.innerText = '0%';
             dogFill.style.width = '0%'; dogPercent.innerText = '0%';
         }
+
+        async function sendFeedback(actualLabel, wasCorrect) {
+            if (!lastPredictionId) return;
+            try {
+                const res = await fetch('/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prediction_id: lastPredictionId,
+                        actual_label: actualLabel,
+                        was_correct: wasCorrect
+                    })
+                });
+                if (res.ok) {
+                    feedbackSent.style.display = 'block';
+                    btnCorrect.disabled = true;
+                    btnWrongCat.disabled = true;
+                    btnWrongDog.disabled = true;
+                }
+            } catch (err) {
+                console.error('Feedback failed:', err);
+            }
+        }
+
+        btnCorrect.addEventListener('click', () => sendFeedback(lastPredictionLabel, true));
+        btnWrongCat.addEventListener('click', () => sendFeedback('Cat', false));
+        btnWrongDog.addEventListener('click', () => sendFeedback('Dog', false));
     </script>
 </body>
 </html>

@@ -1,9 +1,49 @@
-version: "3.9"
+
 
 services:
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - flask-app
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: flask_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-flaskuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flaskpass}
+      POSTGRES_DB: ${POSTGRES_DB:-model_metrics}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flaskuser} -d ${POSTGRES_DB:-model_metrics}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   flask-app:
-    build:  .
+    build: .
     container_name: flask_app_dogs_cats
     ports:
       - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-flaskuser}:${POSTGRES_PASSWORD:-flaskpass}@postgres:5432/${POSTGRES_DB:-model_metrics}
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+
+volumes:
+  postgres_data:
+

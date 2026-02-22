@@ -3,3 +3,5 @@ tensorflow==2.20.0
 numpy==2.2.6
 Pillow==12.1.1
 gunicorn==21.2.0
+prometheus_client==0.24.1
+psycopg2-binary==2.9.10

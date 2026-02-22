@@ -40,41 +40,44 @@ def health_check():
         return jsonify({"status": "unhealthy", "reason": "Model failed to load"}), 503
     return jsonify({"status": "healthy", "model": MODEL_PATH}), 200
 
-@app.route("/predict", methods=["POST"])
+@app.route('/predict', methods=['POST'])
 def predict():
-
-    # 1️⃣ Validate request FIRST
-    if "file" not in request.files:
-        return jsonify({"error": "No file provided"}), 400
-
-    file = request.files["file"]
-
-    if file.filename == "":
-        return jsonify({"error": "Empty filename"}), 400
-
-    # 2️⃣ Then check model availability
+    """Prediction endpoint accepting an image and returning probabilities."""
     if model is None:
-        return jsonify({"error": "Model not loaded"}), 503
+         return jsonify({"error": "Model not available"}), 503
+         
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part in the request"}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
 
-    # 3️⃣ Continue processing
     try:
-        image = Image.open(file).convert("RGB")
-        image = image.resize((224, 224))
-        image = np.array(image) / 255.0
-        image = np.expand_dims(image, axis=0)
-
-        prediction = model.predict(image)[0][0]
-
-        label = "Dog" if prediction > 0.5 else "Cat"
-        confidence = float(prediction if prediction > 0.5 else 1 - prediction)
-
+        image_bytes = file.read()
+        processed_image = preprocess_image(image_bytes)
+        
+        # Run inference
+        prediction = model.predict(processed_image)[0][0]
+        
+        # Assuming binary classification where output close to 1 is Dog, and 0 is Cat.
+        # Adjust logic if your model outputs a 2-node softmax array instead of a single sigmoid node.
+        dog_prob = float(prediction)
+        cat_prob = 1.0 - dog_prob
+        
+        label = 'Dog' if dog_prob > 0.5 else 'Cat'
+        
         return jsonify({
             "prediction": label,
-            "confidence": confidence
-        })
+            "confidence": {
+                "Cat": round(cat_prob * 100, 2),
+                "Dog": round(dog_prob * 100, 2)
+            }
+        }), 200
 
-    except Exception:
-        return jsonify({"error": "Invalid image"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     

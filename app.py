@@ -42,12 +42,14 @@ def health_check():
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part in the request"}), 400
+    
     """Prediction endpoint accepting an image and returning probabilities."""
     if model is None:
          return jsonify({"error": "Model not available"}), 503
          
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part in the request"}), 400
+    
         
     file = request.files['file']
     if file.filename == '':

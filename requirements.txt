@@ -1,0 +1,5 @@
+Flask==3.0.0
+tensorflow==2.20.0
+numpy==2.4.2
+Pillow==12.1.1
+gunicorn==21.2.0

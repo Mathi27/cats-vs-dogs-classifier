@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pet Adoption AI Classifier</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        h2 { text-align: center; margin-top: 0; color: #2c3e50; }
+        
+        /* Health Check Section */
+        .system-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #eef2f5;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+        
+        .upload-area {
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.3s, border-color 0.3s;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover { background: #f0f8ff; }
+        .upload-area img {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 8px;
+            display: none;
+            margin: 0 auto;
+        }
+        .placeholder-text { color: #666; }
+        
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        button:active { transform: scale(0.98); }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-health { background: #6c757d; color: white; }
+        .btn-health:hover { background: #5a6268; }
+        .btn-predict { background: #007bff; color: white; }
+        .btn-predict:hover:not(:disabled) { background: #0056b3; }
+
+        /* Teachable Machine Style Bars */
+        .bar-container {
+            margin: 15px 0;
+            background: #e9ecef;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            height: 35px;
+            position: relative;
+        }
+        .bar-fill {
+            height: 100%;
+            background: #007bff;
+            width: 0%;
+            transition: width 0.5s ease-in-out;
+        }
+        .bar-label {
+            position: absolute;
+            left: 15px;
+            font-weight: bold;
+            color: #fff;
+            mix-blend-mode: difference;
+        }
+        .bar-percent {
+            position: absolute;
+            right: 15px;
+            font-weight: bold;
+            color: #333;
+        }
+        .cat-bar .bar-fill { background: #ff8c00; }
+        .dog-bar .bar-fill { background: #20b2aa; }
+        
+        #result-status {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 15px;
+            min-height: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>🐶 Cat vs Dog Classifier 🐱</h2>
+        
+        <div class="system-status">
+            <span id="health-indicator">Status: Unknown</span>
+            <button class="btn-health" id="btn-health" style="flex: 0 1 auto; padding: 6px 12px; font-size: 0.85em;">Check API Health</button>
+        </div>
+        
+        <div class="upload-area" id="drop-zone" onclick="document.getElementById('file-input').click()">
+            <div class="placeholder-text" id="placeholder">
+                <p>Click or Drag & Drop an image here</p>
+            </div>
+            <img id="preview" src="" alt="Image Preview">
+        </div>
+        <input type="file" id="file-input" style="display: none;" accept="image/*">
+
+        <div class="btn-group">
+            <button class="btn-predict" id="btn-predict" disabled>Run Prediction</button>
+        </div>
+
+        <div id="result-status">Awaiting image selection...</div>
+
+        <div class="bar-container cat-bar">
+            <div class="bar-fill" id="cat-fill"></div>
+            <span class="bar-label">Cat</span>
+            <span class="bar-percent" id="cat-percent">0%</span>
+        </div>
+
+        <div class="bar-container dog-bar">
+            <div class="bar-fill" id="dog-fill"></div>
+            <span class="bar-label">Dog</span>
+            <span class="bar-percent" id="dog-percent">0%</span>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('drop-zone');
+        const preview = document.getElementById('preview');
+        const placeholder = document.getElementById('placeholder');
+        const statusText = document.getElementById('result-status');
+        
+        const btnHealth = document.getElementById('btn-health');
+        const btnPredict = document.getElementById('btn-predict');
+        const healthIndicator = document.getElementById('health-indicator');
+        
+        const catFill = document.getElementById('cat-fill');
+        const catPercent = document.getElementById('cat-percent');
+        const dogFill = document.getElementById('dog-fill');
+        const dogPercent = document.getElementById('dog-percent');
+
+        let selectedFile = null;
+
+        // --- API Health Check Logic ---
+        btnHealth.addEventListener('click', async () => {
+            healthIndicator.innerText = "Checking...";
+            healthIndicator.style.color = "#666";
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                if (response.ok && data.status === 'healthy') {
+                    healthIndicator.innerHTML = "Status: 🟢 <b>API Online</b>";
+                    healthIndicator.style.color = "#28a745";
+                } else {
+                    healthIndicator.innerHTML = "Status: 🔴 <b>Model Offline</b>";
+                    healthIndicator.style.color = "#dc3545";
+                }
+            } catch (err) {
+                healthIndicator.innerHTML = "Status: 🔴 <b>Server Unreachable</b>";
+                healthIndicator.style.color = "#dc3545";
+            }
+        });
+
+        // --- Drag, Drop, and Select Logic ---
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '#e8f4fd';
+            dropZone.style.borderColor = '#0056b3';
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.background = 'transparent';
+            dropZone.style.borderColor = '#007bff';
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.background = 'transparent';
+            dropZone.style.borderColor = '#007bff';
+            if (e.dataTransfer.files.length) {
+                handleFileSelection(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFileSelection(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelection(file) {
+            if (!file.type.startsWith('image/')) {
+                alert("Please select a valid image file.");
+                return;
+            }
+
+            selectedFile = file;
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                preview.style.display = 'block';
+                placeholder.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+
+            // Enable the predict button and reset UI
+            btnPredict.disabled = false;
+            statusText.innerText = "Image ready. Click 'Run Prediction'.";
+            statusText.style.color = "#333";
+            resetBars();
+        }
+
+        // --- Prediction Logic ---
+        btnPredict.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            statusText.innerText = "Analyzing image...";
+            statusText.style.color = "#007bff";
+            btnPredict.disabled = true; // Disable while processing
+            resetBars();
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusText.innerText = `Prediction: ${data.prediction}`;
+                    statusText.style.color = "#28a745";
+                    
+                    // Update UI bars smoothly
+                    catFill.style.width = `${data.confidence.Cat}%`;
+                    catPercent.innerText = `${data.confidence.Cat}%`;
+                    
+                    dogFill.style.width = `${data.confidence.Dog}%`;
+                    dogPercent.innerText = `${data.confidence.Dog}%`;
+                } else {
+                    statusText.innerText = `Error: ${data.error}`;
+                    statusText.style.color = "#dc3545";
+                }
+            } catch (err) {
+                statusText.innerText = "Failed to connect to server.";
+                statusText.style.color = "#dc3545";
+            } finally {
+                btnPredict.disabled = false; // Re-enable when done
+            }
+        });
+
+        function resetBars() {
+            catFill.style.width = '0%'; catPercent.innerText = '0%';
+            dogFill.style.width = '0%'; dogPercent.innerText = '0%';
+        }
+    </script>
+</body>
+</html>
